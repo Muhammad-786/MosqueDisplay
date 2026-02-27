@@ -1,0 +1,2674 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        // Detect Amazon Fire TV / Fire Stick devices and force a desktop viewport
+        // so that mobile CSS breakpoints are never triggered on the big screen.
+        (function () {
+            var ua = navigator.userAgent || '';
+            // Fire TV / Fire Stick device identifiers always start with "AFT"
+            // (AFTM, AFTS, AFTT, AFTMM, AFTSS, AFTJMST, etc.).
+            // The Silk browser also identifies itself as "Silk".
+            var isFireTV = /AFT[A-Z0-9]+/i.test(ua) ||
+                           (ua.indexOf('Silk') !== -1 && ua.indexOf('Android') !== -1);
+            if (isFireTV) {
+                // Override viewport to a fixed 1920-wide desktop viewport
+                var vp = document.querySelector('meta[name="viewport"]');
+                if (vp) {
+                    vp.setAttribute('content', 'width=1920, initial-scale=1.0, maximum-scale=1.0');
+                }
+                // Tag <html> so CSS rules can target Fire TV specifically
+                document.documentElement.setAttribute('data-device', 'firetv');
+            }
+        })();
+    </script>
+    <title>Faizan-E-Madinah Display</title>
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@300;500;700;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+    <style>
+        /* --- CSS VARIABLES & RESET --- */
+        :root {
+            --bg-dark: #0f1316;
+            --gold-primary: #d4af37;
+            --gold-light: #f3e5ab;
+            --gold-dark: #aa8c2c;
+            --text-white: #ffffff;
+            --text-muted: #8b9bb4;
+            --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+            --shadow-soft: 0 20px 50px rgba(0, 0, 0, 0.6);
+            --font-main: 'Montserrat', sans-serif;
+            --font-arabic: 'Amiri', serif;
+        }
+
+        /* --- THEME DEFINITIONS (with backgrounds) --- */
+        body[data-theme="gold"],
+        body:not([data-theme]) {
+            --bg-dark: #0f1316;
+            --gold-primary: #d4af37;
+            --gold-light: #f3e5ab;
+            --gold-dark: #aa8c2c;
+            --theme-gradient: radial-gradient(circle at 100% 0%, rgba(212, 175, 55, 0.12) 0%, transparent 35%),
+                radial-gradient(circle at 0% 100%, rgba(212, 175, 55, 0.08) 0%, transparent 35%),
+                repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 1px, transparent 1px, transparent 12px),
+                linear-gradient(145deg, #0f1316 0%, #080a0c 100%);
+        }
+
+        body[data-theme="emerald"] {
+            --bg-dark: #0a1612;
+            --gold-primary: #10b981;
+            --gold-light: #6ee7b7;
+            --gold-dark: #047857;
+            --theme-gradient: radial-gradient(ellipse at 0% 0%, rgba(16, 185, 129, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 100% 100%, rgba(6, 95, 70, 0.2) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.03) 0%, transparent 70%),
+                linear-gradient(160deg, #0a1612 0%, #051510 50%, #021a12 100%);
+        }
+
+        body[data-theme="royal"] {
+            --bg-dark: #0c0f1a;
+            --gold-primary: #3b82f6;
+            --gold-light: #93c5fd;
+            --gold-dark: #1d4ed8;
+            --theme-gradient: radial-gradient(ellipse at 20% 0%, rgba(59, 130, 246, 0.15) 0%, transparent 45%),
+                radial-gradient(ellipse at 80% 100%, rgba(99, 102, 241, 0.12) 0%, transparent 45%),
+                radial-gradient(circle at 90% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 30%),
+                linear-gradient(155deg, #0c0f1a 0%, #0a0d18 50%, #080b14 100%);
+        }
+
+        body[data-theme="rose"] {
+            --bg-dark: #16100f;
+            --gold-primary: #f43f5e;
+            --gold-light: #fda4af;
+            --gold-dark: #be123c;
+            --theme-gradient: radial-gradient(ellipse at 100% 0%, rgba(244, 63, 94, 0.12) 0%, transparent 45%),
+                radial-gradient(ellipse at 0% 100%, rgba(190, 18, 60, 0.1) 0%, transparent 45%),
+                radial-gradient(circle at 50% 50%, rgba(251, 113, 133, 0.04) 0%, transparent 60%),
+                linear-gradient(150deg, #16100f 0%, #120d0c 50%, #0f0a09 100%);
+        }
+
+        body[data-theme="custom"] {
+            --bg-dark: #0f1316;
+            --theme-gradient: radial-gradient(circle at 100% 0%, var(--gold-glow-1, rgba(212, 175, 55, 0.15)) 0%, transparent 40%),
+                radial-gradient(circle at 0% 100%, var(--gold-glow-2, rgba(212, 175, 55, 0.1)) 0%, transparent 40%),
+                repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 1px, transparent 1px, transparent 12px),
+                linear-gradient(145deg, #0f1316 0%, #080a0c 100%);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-dark);
+            background-image: var(--theme-gradient);
+            color: var(--text-white);
+            font-family: var(--font-main);
+            min-height: 100vh;
+            height: auto;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            overflow-x: hidden;
+            transition: background-color 0.5s ease, background-image 0.5s ease;
+        }
+
+        /* --- HEADER --- */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            background: rgba(15, 19, 22, 0.6);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+            box-shadow: 0 5px 30px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        .mosque-brand {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .mosque-brand h1 {
+            margin: 0;
+            font-family: var(--font-arabic);
+            font-size: 3rem;
+            background: linear-gradient(to bottom, var(--gold-light) 0%, var(--gold-primary) 50%, var(--gold-dark) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 700;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+        }
+
+        .mosque-brand span {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            margin-top: -5px;
+            padding-left: 4px;
+            opacity: 0.8;
+        }
+
+        .clock-widget {
+            text-align: right;
+        }
+
+        .clock-time {
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: var(--text-white);
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+            letter-spacing: -2px;
+        }
+
+        .clock-date {
+            font-size: 1.2rem;
+            color: var(--gold-primary);
+            margin-top: 5px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* --- MAIN LAYOUT --- */
+        .main-content {
+            display: flex;
+            flex: 1;
+            padding: 30px;
+            gap: 40px;
+            height: 100%;
+        }
+
+        /* --- LEFT PANEL --- */
+        .schedule-panel {
+            flex: 0 0 40%;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .glass-card {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%);
+            border: var(--glass-border);
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 30px;
+            padding: 30px;
+            box-shadow: var(--shadow-soft);
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        .jummah-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .section-title {
+            font-family: var(--font-arabic);
+            font-size: 3.2rem;
+            background: linear-gradient(to right, var(--gold-light), var(--gold-primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-align: center;
+            margin: 0 0 30px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 20px;
+        }
+
+        .timing-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .time-slot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 18px 25px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            transition: transform 0.2s ease;
+        }
+
+        .time-slot i {
+            width: 30px;
+            color: var(--gold-dark);
+            font-size: 1.2rem;
+            margin-right: 15px;
+        }
+
+        .slot-info {
+            display: flex;
+            align-items: center;
+            flex: 1;
+            min-width: 0;
+            margin-right: 15px;
+        }
+
+        .time-slot.highlight {
+            background: linear-gradient(90deg, rgba(212, 175, 55, 0.2), rgba(212, 175, 55, 0.05));
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.1);
+            transform: scale(1.02);
+        }
+
+        .label {
+            font-size: 1.3rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .time {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-white);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .highlight .label {
+            color: var(--gold-light);
+            font-weight: 600;
+        }
+
+        .highlight i {
+            color: var(--gold-primary);
+        }
+
+        .highlight .time {
+            color: var(--gold-primary);
+            font-size: 2.2rem;
+        }
+
+        /* --- COUNTDOWN --- */
+        #countdown-container {
+            display: none;
+            border: 1px solid var(--gold-primary);
+            background: rgba(212, 175, 55, 0.05);
+            text-align: center;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 25%;
+        }
+
+        .countdown-header {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: var(--gold-primary);
+            margin-bottom: 5px;
+        }
+
+        .countdown-timer {
+            font-size: 4.5rem;
+            font-weight: 900;
+            color: var(--text-white);
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            text-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+            transition: font-size 0.3s ease;
+        }
+
+        /* --- RIGHT PANEL: SLIDESHOW --- */
+        .media-panel {
+            flex: 1;
+            background: #000;
+            border-radius: 30px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: var(--shadow-soft);
+            border: var(--glass-border);
+        }
+
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+            overflow: hidden;
+            background-color: #000;
+            will-change: opacity;
+        }
+
+        .slide.active {
+            opacity: 1;
+        }
+
+        .slide-bg {
+            position: absolute;
+            top: -5%;
+            left: -5%;
+            right: -5%;
+            bottom: -5%;
+            background-size: cover;
+            background-position: center;
+            filter: blur(40px) brightness(0.4);
+            z-index: 1;
+        }
+
+        .slide-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            z-index: 2;
+            filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.8));
+            transform: scale(1);
+            will-change: transform;
+        }
+
+        /* Ken Burns Animation */
+        @media (prefers-reduced-motion: no-preference) {
+            .slide.active .slide-content {
+                animation: kenBurns 15s ease-out forwards;
+            }
+        }
+
+        @keyframes kenBurns {
+            0% {
+                transform: scale(1);
+            }
+
+            100% {
+                transform: scale(1.05);
+            }
+        }
+
+        .slide-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            top: 0;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.2) 50%, rgba(0, 0, 0, 0.4) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3;
+        }
+
+        .slide-text {
+            text-align: center;
+            padding: 40px;
+            animation: fadeInUp 1s ease-out .5s both;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .slide-text h2 {
+            font-family: var(--font-arabic);
+            font-size: 5rem;
+            color: var(--gold-primary);
+            margin: 0 0 15px 0;
+            text-shadow: 0 5px 15px rgba(0, 0, 0, 0.8);
+        }
+
+        .slide-text p {
+            font-size: 1.8rem;
+            color: #e0e0e0;
+            margin: 0;
+            font-weight: 300;
+            text-shadow: 0 2px 5px rgba(0, 0, 0, 1);
+            letter-spacing: 1px;
+        }
+
+        .progress-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 6px;
+            background: var(--gold-primary);
+            width: 0%;
+            z-index: 10;
+            transition: width 0.1s linear;
+            will-change: width;
+        }
+
+        #loading-message {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
+            color: #aaa;
+            font-family: monospace;
+            font-size: 0.8rem;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        /* --- LAYOUT DEFINITIONS --- */
+        /* Classic Layout (Default - 40/60 split) */
+        body[data-layout="classic"] .schedule-panel,
+        body:not([data-layout]) .schedule-panel {
+            flex: 0 0 40%;
+        }
+
+        /* Media Focus Layout (25/75 split) */
+        body[data-layout="media-focus"] .schedule-panel {
+            flex: 0 0 25%;
+        }
+
+        body[data-layout="media-focus"] .section-title {
+            font-size: 2.2rem;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+        }
+
+        body[data-layout="media-focus"] .time-slot {
+            padding: 12px 18px;
+        }
+
+        body[data-layout="media-focus"] .label {
+            font-size: 1rem;
+        }
+
+        body[data-layout="media-focus"] .time {
+            font-size: 1.4rem;
+        }
+
+        body[data-layout="media-focus"] .countdown-timer {
+            font-size: 3rem;
+        }
+
+        /* Fullscreen Layout (Schedule overlays media) */
+        body[data-layout="fullscreen"] .main-content {
+            position: relative;
+            padding: 0;
+            gap: 0;
+        }
+
+        body[data-layout="fullscreen"] .media-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 0;
+            z-index: 1;
+        }
+
+        body[data-layout="fullscreen"] .schedule-panel {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 380px;
+            max-height: calc(100% - 60px);
+            z-index: 10;
+            flex: none;
+            background: rgba(15, 19, 22, 0.85);
+            border-radius: 24px;
+            padding: 20px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-y: auto;
+        }
+
+        body[data-layout="fullscreen"] .schedule-panel .glass-card {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            padding: 10px 0;
+            border-radius: 0;
+        }
+
+        body[data-layout="fullscreen"] .section-title {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+        }
+
+        body[data-layout="fullscreen"] .time-slot {
+            padding: 10px 12px;
+            border-radius: 10px;
+        }
+
+        body[data-layout="fullscreen"] .label {
+            font-size: 0.95rem;
+        }
+
+        body[data-layout="fullscreen"] .time {
+            font-size: 1.3rem;
+        }
+
+        body[data-layout="fullscreen"] #countdown-container {
+            min-height: auto;
+            padding: 15px;
+        }
+
+        body[data-layout="fullscreen"] .countdown-timer {
+            font-size: 2.5rem;
+        }
+
+        /* Vertical Layout (Stacked - for portrait displays) */
+        body[data-layout="vertical"] .main-content {
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        body[data-layout="vertical"] .schedule-panel {
+            flex: none;
+            order: 2;
+        }
+
+        body[data-layout="vertical"] .media-panel {
+            flex: none;
+            height: 50vh;
+            order: 1;
+        }
+
+        body[data-layout="vertical"] .timing-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        body[data-layout="vertical"] .time-slot {
+            flex-direction: column;
+            text-align: center;
+            padding: 15px 10px;
+        }
+
+        body[data-layout="vertical"] .time-slot i {
+            margin-right: 0;
+            margin-bottom: 8px;
+        }
+
+        body[data-layout="vertical"] .slot-info {
+            flex-direction: column;
+        }
+
+        body[data-layout="vertical"] #countdown-container {
+            min-height: auto;
+            padding: 20px;
+        }
+
+        /* --- ADMIN PANEL --- */
+        #admin-trigger {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 50px;
+            height: 50px;
+            z-index: 1000;
+            cursor: pointer;
+            opacity: 0;
+            background: radial-gradient(circle, rgba(212, 175, 55, 0.4) 0%, transparent 70%);
+            transition: opacity 0.3s ease;
+        }
+
+        #admin-trigger:hover {
+            opacity: 1;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            z-index: 2000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: linear-gradient(145deg, rgba(30, 30, 30, 0.9) 0%, rgba(10, 10, 10, 0.95) 100%);
+            border: 1px solid var(--gold-primary);
+            border-radius: 20px;
+            width: 600px;
+            max-width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: var(--gold-primary);
+            font-size: 1.5rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close-btn:hover {
+            color: #ff6b6b;
+        }
+
+        .modal-body {
+            padding: 20px;
+            flex: 1;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: var(--text-white);
+            font-family: var(--font-main);
+            font-size: 1rem;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--gold-primary);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: var(--font-main);
+        }
+
+        .btn-primary {
+            background: var(--gold-primary);
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            background: var(--gold-light);
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+            padding: 8px 16px;
+            font-size: 0.8rem;
+        }
+
+        .btn-danger:hover {
+            background: rgba(255, 107, 107, 0.4);
+        }
+
+        /* Slide Manager List */
+        .slide-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .slide-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            gap: 10px;
+        }
+
+        .slide-thumb {
+            width: 60px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+
+        .slide-url {
+            flex: 1;
+            font-size: 0.85rem;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
+            color: #ddd;
+        }
+
+        .slide-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .icon-btn:hover {
+            color: var(--gold-primary);
+        }
+
+        .hidden-slide {
+            opacity: 0.4;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab-btn.active {
+            color: var(--gold-primary);
+            border-bottom-color: var(--gold-primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Theme Cards */
+        .theme-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .theme-card {
+            background: rgba(0, 0, 0, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .theme-card:hover {
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .theme-card.selected {
+            border-color: var(--gold-primary);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+        }
+
+        .theme-card.selected::after {
+            content: '✓';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--gold-primary);
+            color: #000;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .theme-preview {
+            height: 60px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .theme-preview-bar {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 100%;
+        }
+
+        .theme-name {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-white);
+            text-align: center;
+        }
+
+        /* Layout Cards */
+        .layout-card {
+            background: rgba(0, 0, 0, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .layout-card:hover {
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .layout-card.selected {
+            border-color: var(--gold-primary);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+        }
+
+        .layout-card.selected::after {
+            content: '✓';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--gold-primary);
+            color: #000;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .layout-preview {
+            height: 60px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .layout-preview svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Mobile Responsive Styles - Admin Panel */
+        @media (max-width: 768px) {
+
+            /* Larger touch targets for mobile */
+            .icon-btn {
+                padding: 10px;
+                font-size: 1.1rem;
+            }
+
+            .btn {
+                padding: 14px 20px;
+                font-size: 1rem;
+                min-height: 48px;
+                /* iOS minimum touch target */
+            }
+
+            /* Modal adjustments for mobile */
+            .modal-content {
+                width: 95%;
+                max-width: 95%;
+                max-height: 95vh;
+                border-radius: 12px;
+            }
+
+            .modal-header {
+                padding: 15px;
+            }
+
+            .modal-header h2 {
+                font-size: 1.2rem;
+            }
+
+            .modal-body {
+                padding: 15px;
+            }
+
+            /* Form inputs - larger for easier typing */
+            .form-control {
+                padding: 14px;
+                font-size: 16px;
+                /* Prevents iOS zoom on focus */
+                min-height: 48px;
+            }
+
+            /* Tabs - make them stack on very small screens */
+            .tabs {
+                flex-wrap: wrap;
+            }
+
+            .tab-btn {
+                padding: 12px 16px;
+                font-size: 0.95rem;
+                flex: 1;
+                min-width: 120px;
+            }
+
+            /* Slide list items - consolidated styles */
+            .slide-item {
+                flex-direction: row;
+                flex-wrap: wrap;
+                align-items: center;
+                padding: 12px;
+                gap: 10px;
+            }
+
+            .slide-thumb {
+                width: 50px;
+                height: 50px;
+                flex-shrink: 0;
+            }
+
+            .slide-url {
+                flex: 1;
+                font-size: 0.9rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 150px;
+            }
+
+            .slide-actions {
+                display: flex;
+                gap: 8px;
+            }
+
+            .slide-actions button,
+            .slide-actions input[type="checkbox"] {
+                transform: scale(1.3);
+            }
+
+            /* Form group spacing */
+            .form-group {
+                margin-bottom: 18px;
+            }
+
+            .form-group label {
+                font-size: 1rem;
+                margin-bottom: 10px;
+            }
+
+            /* Stack time inputs vertically */
+            .form-group div[style*="flex"] {
+                flex-direction: column !important;
+                gap: 5px !important;
+            }
+
+            .form-group div[style*="flex"] input {
+                width: 100% !important;
+            }
+
+            /* Separator fix */
+            span[style*="background: rgb(20,20,20)"] {
+                font-size: 0.8rem;
+                padding: 0 5px;
+            }
+
+            /* Admin trigger - slightly larger on mobile */
+            #admin-trigger {
+                width: 60px;
+                height: 60px;
+            }
+
+            /* Close button - larger touch target */
+            .close-btn {
+                padding: 8px;
+                font-size: 1.8rem;
+            }
+        }
+
+        /* Extra small phones */
+        @media (max-width: 480px) {
+            .modal-content {
+                width: 98%;
+                max-width: 98%;
+                border-radius: 8px;
+            }
+
+            .modal-header h2 {
+                font-size: 1.1rem;
+            }
+
+            .tab-btn {
+                font-size: 0.85rem;
+                padding: 10px 12px;
+            }
+
+            .slide-thumb {
+                width: 60px;
+                height: 45px;
+            }
+        }
+
+        /* Responsive adjustments for MAIN DISPLAY */
+        @media (max-width: 1200px) {
+            .main-content {
+                flex-direction: column;
+                padding: 15px;
+                /* Reduce padding */
+                gap: 20px;
+            }
+
+            .schedule-panel {
+                flex: 0 0 auto;
+                width: 100%;
+                /* Full width */
+            }
+
+            .media-panel {
+                min-height: 40vh;
+                /* Ensure slideshow has height */
+            }
+        }
+
+        /* Tablet & Mobile Screens */
+        @media (max-width: 768px) {
+
+            /* Header Adjustments */
+            header {
+                padding: 15px 20px;
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .mosque-brand h1 {
+                font-size: 2rem;
+            }
+
+            .clock-widget {
+                text-align: center;
+            }
+
+            .clock-time {
+                font-size: 2.5rem;
+            }
+
+            .clock-date {
+                font-size: 1rem;
+            }
+
+            /* Schedule Panel Adjustments */
+            .glass-card {
+                padding: 20px;
+                border-radius: 20px;
+            }
+
+            .section-title {
+                font-size: 2rem;
+                margin-bottom: 20px;
+            }
+
+            .time-slot {
+                padding: 12px 15px;
+            }
+
+            .label {
+                font-size: 1rem;
+            }
+
+            .time {
+                font-size: 1.4rem;
+            }
+
+            /* Slideshow Adjustments */
+            .media-panel {
+                min-height: 300px;
+                /* Fixed minimum height for mobile */
+            }
+
+            .slide-text h2 {
+                font-size: 3rem;
+            }
+
+            .slide-text p {
+                font-size: 1.2rem;
+            }
+        }
+
+        /* Small Mobile Adjustments */
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 10px;
+            }
+
+            .mosque-brand h1 {
+                font-size: 1.8rem;
+            }
+
+            .clock-time {
+                font-size: 2rem;
+            }
+
+            .time-slot {
+                flex-direction: column;
+                gap: 5px;
+                text-align: center;
+            }
+
+            .slot-info {
+                justify-content: center;
+            }
+
+            .time-slot i {
+                margin-right: 8px;
+            }
+
+            .time {
+                font-size: 1.6rem;
+            }
+
+            .highlight .time {
+                font-size: 1.8rem;
+            }
+        }
+
+        /* ============================================================
+           AMAZON FIRE TV / FIRE STICK — FORCE DESKTOP LAYOUT
+           These rules override every mobile media query above when the
+           device is detected as Fire TV (data-device="firetv" is set
+           on <html> by the inline detection script in <head>).
+           They must stay at the END of the stylesheet so their
+           specificity wins over the media-query rules above.
+        ============================================================ */
+        html[data-device="firetv"] header {
+            flex-direction: row !important;
+            padding: 20px 40px !important;
+            text-align: left !important;
+            gap: 0 !important;
+        }
+
+        html[data-device="firetv"] .mosque-brand {
+            align-items: flex-start !important;
+        }
+
+        html[data-device="firetv"] .mosque-brand h1 {
+            font-size: 3rem !important;
+        }
+
+        html[data-device="firetv"] .clock-widget {
+            text-align: right !important;
+        }
+
+        html[data-device="firetv"] .clock-time {
+            font-size: 3.5rem !important;
+        }
+
+        html[data-device="firetv"] .clock-date {
+            font-size: 1.2rem !important;
+        }
+
+        html[data-device="firetv"] .main-content {
+            flex-direction: row !important;
+            padding: 30px !important;
+            gap: 40px !important;
+        }
+
+        /* Restore panel flex ratios based on chosen layout */
+        html[data-device="firetv"] body[data-layout="classic"] .schedule-panel,
+        html[data-device="firetv"] body:not([data-layout]) .schedule-panel {
+            flex: 0 0 40% !important;
+            width: auto !important;
+        }
+
+        html[data-device="firetv"] body[data-layout="media-focus"] .schedule-panel {
+            flex: 0 0 25% !important;
+            width: auto !important;
+        }
+
+        html[data-device="firetv"] .schedule-panel {
+            width: auto !important;
+        }
+
+        html[data-device="firetv"] .media-panel {
+            min-height: unset !important;
+        }
+
+        html[data-device="firetv"] .glass-card {
+            padding: 30px !important;
+            border-radius: 30px !important;
+        }
+
+        html[data-device="firetv"] .section-title {
+            font-size: 3.2rem !important;
+            margin-bottom: 30px !important;
+            padding-bottom: 20px !important;
+        }
+
+        html[data-device="firetv"] .time-slot {
+            flex-direction: row !important;
+            padding: 18px 25px !important;
+            gap: 0 !important;
+            text-align: left !important;
+        }
+
+        html[data-device="firetv"] .time-slot i {
+            margin-right: 15px !important;
+        }
+
+        html[data-device="firetv"] .slot-info {
+            flex-direction: row !important;
+            justify-content: flex-start !important;
+        }
+
+        html[data-device="firetv"] .label {
+            font-size: 1.3rem !important;
+        }
+
+        html[data-device="firetv"] .time {
+            font-size: 1.8rem !important;
+        }
+
+        html[data-device="firetv"] .highlight .time {
+            font-size: 2.2rem !important;
+        }
+
+        html[data-device="firetv"] .slide-text h2 {
+            font-size: 5rem !important;
+        }
+
+        html[data-device="firetv"] .slide-text p {
+            font-size: 1.8rem !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="mosque-brand">
+            <h1>Faizan-E-Madinah</h1>
+            <span>Ravensthorpe</span>
+        </div>
+        <div class="clock-widget">
+            <div class="clock-time" id="clock-time">00:00</div>
+            <div class="clock-date" id="clock-date">Monday, 1 January</div>
+        </div>
+    </header>
+
+    <div class="main-content">
+
+        <div class="schedule-panel">
+            <div class="glass-card jummah-container">
+                <h2 class="section-title">Jummah Timings</h2>
+                <div class="timing-grid">
+                    <div class="time-slot">
+                        <div class="slot-info">
+                            <i class="fas fa-microphone"></i> <span class="label">Speech</span>
+                        </div>
+                        <span class="time" id="speech-time">--:--</span>
+                    </div>
+                    <div class="time-slot">
+                        <div class="slot-info">
+                            <i class="fas fa-book-open"></i> <span class="label">Khutbah Starts</span>
+                        </div>
+                        <span class="time" id="khutbah-time">--:--</span>
+                    </div>
+                    <div class="time-slot highlight">
+                        <div class="slot-info">
+                            <i class="fas fa-users"></i> <span class="label">Jummah Jamaat</span>
+                        </div>
+                        <span class="time" id="jamaat-time">--:--</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card" id="countdown-container">
+                <div class="countdown-header">Time Remaining</div>
+                <div class="countdown-timer" id="timer">00:00</div>
+            </div>
+        </div>
+
+        <div class="media-panel" id="slideshow-container">
+            <div class="progress-bar" id="slide-progress"></div>
+            <div id="loading-message">Loading...</div>
+        </div>
+    </div>
+
+    <div id="admin-trigger" title="Admin Settings"></div>
+
+    <div id="admin-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Display Settings</h2>
+                <button class="close-btn" onclick="closeAdminPanel()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div id="login-view">
+                    <div class="form-group">
+                        <label>Admin Email</label>
+                        <input type="email" id="admin-email" class="form-control" placeholder="admin@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="admin-password" class="form-control" placeholder="****">
+                    </div>
+                    <button class="btn btn-primary" style="width:100%" onclick="loginAdmin()">Secure Login</button>
+                </div>
+
+                <div id="settings-view" style="display:none;">
+                    <div class="tabs">
+                        <button class="tab-btn active" onclick="switchTab('timings')">Timings</button>
+                        <button class="tab-btn" onclick="switchTab('slides')">Slides</button>
+                        <button class="tab-btn" onclick="switchTab('appearance')">Appearance</button>
+                    </div>
+
+                    <div id="tab-timings" class="tab-content active">
+                        <div class="form-group">
+                            <label>Speech Time (HH:MM - 24h format)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="number" id="input-speech-h" class="form-control" min="0" max="23"
+                                    placeholder="HH">
+                                <input type="number" id="input-speech-m" class="form-control" min="0" max="59"
+                                    placeholder="MM">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Khutbah Starts Time (HH:MM - 24h format)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="number" id="input-khutbah-h" class="form-control" min="0" max="23"
+                                    placeholder="HH">
+                                <input type="number" id="input-khutbah-m" class="form-control" min="0" max="59"
+                                    placeholder="MM">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Jummah Jamaat Time (HH:MM - 24h format)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="number" id="input-jamaat-h" class="form-control" min="0" max="23"
+                                    placeholder="HH">
+                                <input type="number" id="input-jamaat-m" class="form-control" min="0" max="59"
+                                    placeholder="MM">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Countdown Start Time (Friday HH:MM)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="number" id="input-start-h" class="form-control" min="0" max="23"
+                                    placeholder="HH">
+                                <input type="number" id="input-start-m" class="form-control" min="0" max="59"
+                                    placeholder="MM">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="tab-slides" class="tab-content">
+                        <!-- File Upload Section -->
+                        <div class="form-group"
+                            style="background:rgba(255,255,255,0.05); padding:15px; border-radius:10px; border:1px dashed var(--gold-primary); margin-bottom: 20px;">
+                            <label style="color:var(--gold-primary);"><i class="fas fa-cloud-upload-alt"></i> Upload New
+                                Slide (Gallery/File)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="file" id="input-slide-file" class="form-control" accept="image/*">
+                                <button class="btn btn-primary" id="btn-upload"
+                                    onclick="uploadSlideFile()">Upload</button>
+                            </div>
+                            <small style="color: #aaa; margin-top:5px; display:block;">Supported: JPG, PNG, GIF</small>
+                        </div>
+
+                        <div
+                            style="text-align:center; margin:15px 0; color:var(--text-muted); position:relative; margin-bottom: 20px;">
+                            <span
+                                style="background: rgb(20,20,20); padding:0 10px; position:relative; z-index:1; font-size: 0.9rem;">OR
+                                ADD VIA LINK</span>
+                            <div
+                                style="position:absolute; top:50%; left:0; width:100%; height:1px; background:rgba(255,255,255,0.1); z-index:0;">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Add Slide via URL</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="input-slide-url" class="form-control"
+                                    placeholder="https://example.com/image.jpg">
+                                <button class="btn btn-primary" onclick="addNewSlide()">Add</button>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 20px;">
+                            <label>Add Special Message Slide</label>
+                            <div style="display:flex; gap:10px;">
+                                <button class="btn btn-primary" onclick="addTextSlideTemplate('mobile')"
+                                    style="flex:1; background:rgba(212, 175, 55, 0.2); border-color:var(--gold-primary);"><i
+                                        class="fas fa-mobile-screen-button"></i> Mobile Rule</button>
+                                <button class="btn btn-primary" onclick="addTextSlideTemplate('donate')"
+                                    style="flex:1; background:rgba(212, 175, 55, 0.2); border-color:var(--gold-primary);"><i
+                                        class="fas fa-hand-holding-heart"></i> Donate Rule</button>
+                            </div>
+                        </div>
+
+                        <label style="margin-top: 15px; display: block;">Active Slides</label>
+                        <ul id="admin-slide-list" class="slide-list">
+                        </ul>
+                    </div>
+
+                    <div id="tab-appearance" class="tab-content">
+                        <label>Color Scheme</label>
+                        <div class="theme-grid">
+                            <div class="theme-card selected" data-theme="gold" onclick="selectTheme('gold')">
+                                <div class="theme-preview">
+                                    <div class="theme-preview-bar"
+                                        style="background: linear-gradient(135deg, #0f1316 0%, #1a1a1a 30%, #d4af37 50%, #f3e5ab 70%, #aa8c2c 100%);">
+                                    </div>
+                                </div>
+                                <div class="theme-name">Gold Classic</div>
+                            </div>
+                            <div class="theme-card" data-theme="emerald" onclick="selectTheme('emerald')">
+                                <div class="theme-preview">
+                                    <div class="theme-preview-bar"
+                                        style="background: linear-gradient(135deg, #0a1612 0%, #0d1f19 30%, #10b981 50%, #6ee7b7 70%, #047857 100%);">
+                                    </div>
+                                </div>
+                                <div class="theme-name">Emerald Oasis</div>
+                            </div>
+                            <div class="theme-card" data-theme="royal" onclick="selectTheme('royal')">
+                                <div class="theme-preview">
+                                    <div class="theme-preview-bar"
+                                        style="background: linear-gradient(135deg, #0c0f1a 0%, #131830 30%, #3b82f6 50%, #93c5fd 70%, #1d4ed8 100%);">
+                                    </div>
+                                </div>
+                                <div class="theme-name">Royal Night</div>
+                            </div>
+                            <div class="theme-card" data-theme="rose" onclick="selectTheme('rose')">
+                                <div class="theme-preview">
+                                    <div class="theme-preview-bar"
+                                        style="background: linear-gradient(135deg, #16100f 0%, #251515 30%, #f43f5e 50%, #fda4af 70%, #be123c 100%);">
+                                    </div>
+                                </div>
+                                <div class="theme-name">Rose Dawn</div>
+                            </div>
+                            <div class="theme-card" data-theme="custom" onclick="selectTheme('custom')">
+                                <div class="theme-preview"
+                                    style="display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.5);">
+                                    <input type="color" id="custom-color-picker" value="#d4af37"
+                                        onchange="updateCustomColor(event)" onclick="event.stopPropagation()"
+                                        style="width: 44px; height: 44px; border: none; border-radius: 5px; cursor: pointer; background: transparent; padding: 0;">
+                                </div>
+                                <div class="theme-name">Custom Color</div>
+                            </div>
+                        </div>
+
+                        <label style="margin-top: 25px; display: block;">Layout Style</label>
+                        <div class="theme-grid">
+                            <div class="layout-card selected" data-layout="classic" onclick="selectLayout('classic')">
+                                <div class="layout-preview">
+                                    <svg viewBox="0 0 100 60" fill="none">
+                                        <rect x="2" y="2" width="35" height="56" rx="3" fill="rgba(255,255,255,0.2)"
+                                            stroke="var(--gold-primary)" stroke-width="1" />
+                                        <rect x="42" y="2" width="56" height="56" rx="3" fill="rgba(255,255,255,0.1)"
+                                            stroke="rgba(255,255,255,0.3)" stroke-width="1" />
+                                    </svg>
+                                </div>
+                                <div class="theme-name">Classic</div>
+                            </div>
+                            <div class="layout-card" data-layout="media-focus" onclick="selectLayout('media-focus')">
+                                <div class="layout-preview">
+                                    <svg viewBox="0 0 100 60" fill="none">
+                                        <rect x="2" y="2" width="22" height="56" rx="3" fill="rgba(255,255,255,0.2)"
+                                            stroke="var(--gold-primary)" stroke-width="1" />
+                                        <rect x="28" y="2" width="70" height="56" rx="3" fill="rgba(255,255,255,0.1)"
+                                            stroke="rgba(255,255,255,0.3)" stroke-width="1" />
+                                    </svg>
+                                </div>
+                                <div class="theme-name">Media Focus</div>
+                            </div>
+                            <div class="layout-card" data-layout="fullscreen" onclick="selectLayout('fullscreen')">
+                                <div class="layout-preview">
+                                    <svg viewBox="0 0 100 60" fill="none">
+                                        <rect x="2" y="2" width="96" height="56" rx="3" fill="rgba(255,255,255,0.1)"
+                                            stroke="rgba(255,255,255,0.3)" stroke-width="1" />
+                                        <rect x="6" y="30" width="28" height="24" rx="2" fill="rgba(255,255,255,0.3)"
+                                            stroke="var(--gold-primary)" stroke-width="1" />
+                                    </svg>
+                                </div>
+                                <div class="theme-name">Full Screen</div>
+                            </div>
+                            <div class="layout-card" data-layout="vertical" onclick="selectLayout('vertical')">
+                                <div class="layout-preview">
+                                    <svg viewBox="0 0 100 60" fill="none">
+                                        <rect x="2" y="2" width="96" height="30" rx="3" fill="rgba(255,255,255,0.1)"
+                                            stroke="rgba(255,255,255,0.3)" stroke-width="1" />
+                                        <rect x="2" y="36" width="96" height="22" rx="3" fill="rgba(255,255,255,0.2)"
+                                            stroke="var(--gold-primary)" stroke-width="1" />
+                                    </svg>
+                                </div>
+                                <div class="theme-name">Vertical</div>
+                            </div>
+                        </div>
+
+                        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 15px; text-align: center;">
+                            <i class="fas fa-info-circle"></i> Changes apply instantly. Click Save to persist.
+                        </p>
+                    </div>
+
+                    <div
+                        style="margin-top:20px; text-align:right; border-top:1px solid rgba(255,255,255,0.1); padding-top:20px;">
+                        <button class="btn btn-primary" onclick="saveSettings()">Save & Update Cloud</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. FIREBASE CONFIGURATION (PRE-FILLED WITH YOUR KEYS) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCi2E1ijY7hbV6EEru0i1_tyq7ez70ptM8",
+            authDomain: "faizan-display.firebaseapp.com",
+            projectId: "faizan-display",
+            storageBucket: "faizan-display.firebasestorage.app",
+            messagingSenderId: "689059084609",
+            appId: "1:689059084609:web:8fca2be19c2df6a4a3c9c0"
+        };
+        // ----------------------------------------------------
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        // --- CONSTANTS (Avoid Magic Numbers) ---
+        const CONSTANTS = {
+            SLIDE_DURATION: 8000,
+            MAX_IMAGE_WIDTH: 800,
+            IMAGE_QUALITY: 0.6,
+            MAX_IMAGE_SIZE_BYTES: 500000,
+            FRIDAY_DAY_INDEX: 5,
+            CLOCK_UPDATE_INTERVAL: 1000
+        };
+
+        // Theme options with metadata
+        const THEME_OPTIONS = {
+            gold: { name: 'Gold Classic', primary: '#d4af37', light: '#f3e5ab', dark: '#aa8c2c' },
+            emerald: { name: 'Emerald Oasis', primary: '#10b981', light: '#6ee7b7', dark: '#047857' },
+            royal: { name: 'Royal Night', primary: '#3b82f6', light: '#93c5fd', dark: '#1d4ed8' },
+            rose: { name: 'Rose Dawn', primary: '#f43f5e', light: '#fda4af', dark: '#be123c' },
+            custom: { name: 'Custom Color', primary: '#d4af37', light: '#f3e5ab', dark: '#aa8c2c' }
+        };
+
+        // Layout options with metadata
+        const LAYOUT_OPTIONS = {
+            classic: { name: 'Classic', description: '40/60 split layout' },
+            'media-focus': { name: 'Media Focus', description: '25/75 split with larger slideshow' },
+            fullscreen: { name: 'Full Screen', description: 'Slideshow fullscreen with overlay schedule' },
+            vertical: { name: 'Vertical', description: 'Stacked layout for portrait displays' }
+        };
+
+        // --- GLOBAL CONFIG & STATE ---
+        const DEFAULT_CONFIG = {
+            theme: 'gold',      // Current theme
+            customColor: '#d4af37', // Custom theme color
+            layout: 'classic',  // Current layout
+            jummah: {
+                dayIndex: CONSTANTS.FRIDAY_DAY_INDEX,
+                startDisplayHour: 10,
+                startDisplayMinute: 0,
+                speechHour: 12,
+                speechMinute: 15,
+                khutbahHour: 12,
+                khutbahMinute: 40,
+                jamaatHour: 12,
+                jamaatMinute: 45,
+                postPrayerEndHour: 15,
+                postPrayerEndMinute: 0
+            },
+            slides: []
+        };
+
+        let APP_CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+
+        // --- DOM ELEMENTS ---
+        const slideshowContainer = document.getElementById('slideshow-container');
+        const progressBar = document.getElementById('slide-progress');
+        const loadingMessage = document.getElementById('loading-message');
+        const staticSlides = Array.from(document.querySelectorAll('.static-slide'));
+
+        let dynamicSlides = [];
+        let currentAnimationFrame = null;
+        let currentSlideIndex = 0;
+
+        // --- UTILITY FUNCTIONS ---
+        /**
+         * Escapes HTML entities to prevent XSS attacks
+         * @param {string} text - The text to escape
+         * @returns {string} - Escaped HTML string
+         */
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        /**
+         * Validates if a string is a valid HTTP/HTTPS URL or data URL
+         * @param {string} string - The URL to validate
+         * @returns {boolean} - True if valid URL
+         */
+        function isValidUrl(string) {
+            // Allow data URLs (for base64 images)
+            if (string.startsWith('data:image/')) {
+                return true;
+            }
+            try {
+                const url = new URL(string);
+                return url.protocol === 'http:' || url.protocol === 'https:';
+            } catch {
+                return false;
+            }
+        }
+
+        /**
+         * Validates a time input value within a range
+         * @param {string|number} value - The input value
+         * @param {number} min - Minimum allowed value
+         * @param {number} max - Maximum allowed value  
+         * @param {number} fallback - Default value if invalid
+         * @returns {number} - Validated number
+         */
+        function validateTimeInput(value, min, max, fallback) {
+            const num = parseInt(value, 10);
+            if (isNaN(num) || num < min || num > max) {
+                return fallback;
+            }
+            return num;
+        }
+
+        // --- INITIALIZATION ---
+        /**
+         * Initializes the application - sets up listeners and starts clock
+         */
+        function initApp() {
+            setupRealtimeListener(); // Connect to Cloud
+            setupAdminListeners();
+            updateClock();
+            setInterval(updateClock, CONSTANTS.CLOCK_UPDATE_INTERVAL);
+
+            // Keep-alive polling to detect TV sleep/wake or dropped sockets
+            setInterval(() => {
+                db.collection("mosque_data").doc("settings").get({ source: 'server' })
+                    .then((doc) => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            let needsUpdate = false;
+
+                            if (APP_CONFIG.theme !== data.theme) needsUpdate = true;
+                            if (APP_CONFIG.layout !== data.layout) needsUpdate = true;
+                            if (APP_CONFIG.customColor !== data.customColor) needsUpdate = true;
+                            if (JSON.stringify(APP_CONFIG.jummah) !== JSON.stringify(data.jummah)) needsUpdate = true;
+
+                            if (needsUpdate) {
+                                console.log("Background sync applying new settings...");
+                                APP_CONFIG.jummah = data.jummah || DEFAULT_CONFIG.jummah;
+                                APP_CONFIG.theme = data.theme || DEFAULT_CONFIG.theme;
+                                APP_CONFIG.customColor = data.customColor || DEFAULT_CONFIG.customColor;
+                                APP_CONFIG.layout = data.layout || DEFAULT_CONFIG.layout;
+                                updateJummahTimesDisplay();
+                                updateClock();
+                                applyTheme(APP_CONFIG.theme);
+                                applyLayout(APP_CONFIG.layout);
+                            }
+                        }
+                    }).catch(e => console.error("Keep-alive sync failed:", e));
+            }, 10 * 60 * 1000); // 10 minutes
+
+            setInterval(() => {
+                db.collection("slides").orderBy("order", "asc").get({ source: 'server' })
+                    .then(snapshot => {
+                        let newSlides = [];
+                        snapshot.forEach(doc => newSlides.push({ ...doc.data(), id: doc.id }));
+                        if (JSON.stringify(APP_CONFIG.slides) !== JSON.stringify(newSlides)) {
+                            console.log("Background sync applying new slides...");
+                            APP_CONFIG.slides = newSlides;
+                            if (document.getElementById('settings-view').style.display === 'block') {
+                                renderAdminSlideList();
+                            }
+                        }
+                    }).catch(e => console.error("Keep-alive slides sync failed:", e));
+            }, 10 * 60 * 1000); // 10 minutes
+        }
+
+        // --- REALTIME DATABASE CONNECTION ---
+        /**
+         * Sets up Firebase real-time listeners for settings and slides
+         */
+        function setupRealtimeListener() {
+            // 1. Listen to SETTINGS (Timings, Theme, Layout) - with error handler
+            db.collection("mosque_data").doc("settings")
+                .onSnapshot((doc) => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        APP_CONFIG.jummah = data.jummah || DEFAULT_CONFIG.jummah;
+                        APP_CONFIG.theme = data.theme || DEFAULT_CONFIG.theme;
+                        APP_CONFIG.customColor = data.customColor || DEFAULT_CONFIG.customColor;
+                        APP_CONFIG.layout = data.layout || DEFAULT_CONFIG.layout;
+                        updateJummahTimesDisplay();
+                        updateClock();
+                        applyTheme(APP_CONFIG.theme);   // Apply saved theme
+                        applyLayout(APP_CONFIG.layout); // Apply saved layout
+                    } else {
+                        db.collection("mosque_data").doc("settings").set({
+                            jummah: DEFAULT_CONFIG.jummah,
+                            theme: DEFAULT_CONFIG.theme,
+                            customColor: DEFAULT_CONFIG.customColor,
+                            layout: DEFAULT_CONFIG.layout
+                        });
+                    }
+                }, (error) => {
+                    console.error("Error getting settings: ", error);
+                });
+
+            // 2. Listen to SLIDES (Separate Collection for Unlimited Storage)
+            db.collection("slides").orderBy("order", "asc")
+                .onSnapshot((snapshot) => {
+                    APP_CONFIG.slides = [];
+                    snapshot.forEach((doc) => {
+                        const s = doc.data();
+                        // Add ID so we can update/delete later
+                        APP_CONFIG.slides.push({ ...s, id: doc.id });
+                    });
+
+                    renderAdminSlideList();
+                    initSlideshowFromConfig(); // Reload slideshow
+
+                    if (snapshot.empty) {
+                        console.log("No slides found in collection.");
+                    }
+                }, (error) => {
+                    console.error("Error getting slides: ", error);
+                });
+        }
+
+        // --- ACCESS & ADMIN UI LOGIC ---
+        function setupAdminListeners() {
+            const trigger = document.getElementById('admin-trigger');
+            const modal = document.getElementById('admin-modal');
+
+            trigger.addEventListener('click', () => {
+                modal.classList.add('visible');
+
+                // Check if already logged in
+                const user = auth.currentUser;
+                if (user) {
+                    document.getElementById('login-view').style.display = 'none';
+                    document.getElementById('settings-view').style.display = 'block';
+                    loadSettingsToUI();
+                } else {
+                    document.getElementById('login-view').style.display = 'block';
+                    document.getElementById('settings-view').style.display = 'none';
+                }
+            });
+        }
+
+        function closeAdminPanel() {
+            document.getElementById('admin-modal').classList.remove('visible');
+        }
+
+        /**
+         * Authenticates admin user with Firebase Auth
+         */
+        function loginAdmin() {
+            const email = document.getElementById('admin-email').value;
+            const pass = document.getElementById('admin-password').value;
+            const btn = document.querySelector('#login-view .btn-primary');
+            const originalText = btn.innerText;
+
+            // Validate inputs
+            if (!email || !pass) {
+                alert("Please enter both email and password.");
+                return;
+            }
+
+            btn.innerText = "Logging in...";
+            btn.disabled = true;
+
+            auth.signInWithEmailAndPassword(email, pass)
+                .then((userCredential) => {
+                    // Signed in
+                    document.getElementById('login-view').style.display = 'none';
+                    document.getElementById('settings-view').style.display = 'block';
+                    loadSettingsToUI();
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                })
+                .catch((error) => {
+                    alert("Login Failed: " + error.message);
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                });
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            const btns = document.querySelectorAll('.tab-btn');
+            if (tabName === 'timings') btns[0].classList.add('active');
+            else if (tabName === 'slides') btns[1].classList.add('active');
+            else if (tabName === 'appearance') btns[2].classList.add('active');
+        }
+
+        function adjustColor(color, amount) {
+            return '#' + color.replace(/^#/, '').replace(/../g, color => ('0' + Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
+        }
+
+        function hexToRgba(hex, alpha) {
+            let rs = hex.length === 4 ? hex.slice(1, 2) + hex.slice(1, 2) : hex.slice(1, 3);
+            let gs = hex.length === 4 ? hex.slice(2, 3) + hex.slice(2, 3) : hex.slice(3, 5);
+            let bs = hex.length === 4 ? hex.slice(3, 4) + hex.slice(3, 4) : hex.slice(5, 7);
+            return `rgba(${parseInt(rs, 16)}, ${parseInt(gs, 16)}, ${parseInt(bs, 16)}, ${alpha})`;
+        }
+
+        function applyCustomColors(hex) {
+            document.body.style.setProperty('--gold-primary', hex);
+            document.body.style.setProperty('--gold-light', adjustColor(hex, 40));
+            document.body.style.setProperty('--gold-dark', adjustColor(hex, -40));
+            document.body.style.setProperty('--gold-glow-1', hexToRgba(hex, 0.15));
+            document.body.style.setProperty('--gold-glow-2', hexToRgba(hex, 0.1));
+        }
+
+        /**
+         * Applies a theme to the page by setting data-theme attribute
+         * @param {string} themeName - Theme identifier (gold, emerald, royal, rose, custom)
+         */
+        function applyTheme(themeName) {
+            if (!THEME_OPTIONS[themeName]) themeName = 'gold';
+            document.body.setAttribute('data-theme', themeName);
+            APP_CONFIG.theme = themeName;
+
+            if (themeName === 'custom') {
+                const cColor = APP_CONFIG.customColor || '#d4af37';
+                applyCustomColors(cColor);
+                const colorPicker = document.getElementById('custom-color-picker');
+                if (colorPicker) colorPicker.value = cColor;
+            } else {
+                document.body.style.removeProperty('--gold-primary');
+                document.body.style.removeProperty('--gold-light');
+                document.body.style.removeProperty('--gold-dark');
+                document.body.style.removeProperty('--gold-glow-1');
+                document.body.style.removeProperty('--gold-glow-2');
+            }
+
+            // Update theme card selection UI
+            document.querySelectorAll('.theme-card').forEach(card => {
+                card.classList.remove('selected');
+                if (card.dataset.theme === themeName) {
+                    card.classList.add('selected');
+                }
+            });
+        }
+
+        /**
+         * Handles theme card click - applies theme instantly
+         * @param {string} themeName - Theme identifier
+         */
+        function selectTheme(themeName) {
+            applyTheme(themeName);
+        }
+
+        function updateCustomColor(event) {
+            APP_CONFIG.customColor = event.target.value;
+            if (APP_CONFIG.theme === 'custom') {
+                applyCustomColors(APP_CONFIG.customColor);
+            } else {
+                selectTheme('custom');
+            }
+        }
+
+        /**
+         * Applies a layout to the page by setting data-layout attribute
+         * @param {string} layoutName - Layout identifier (classic, media-focus, fullscreen, vertical)
+         */
+        function applyLayout(layoutName) {
+            if (!LAYOUT_OPTIONS[layoutName]) layoutName = 'classic';
+            document.body.setAttribute('data-layout', layoutName);
+            APP_CONFIG.layout = layoutName;
+
+            // Update layout card selection UI
+            document.querySelectorAll('.layout-card').forEach(card => {
+                card.classList.remove('selected');
+                if (card.dataset.layout === layoutName) {
+                    card.classList.add('selected');
+                }
+            });
+        }
+
+        /**
+         * Handles layout card click - applies layout instantly
+         * @param {string} layoutName - Layout identifier
+         */
+        function selectLayout(layoutName) {
+            applyLayout(layoutName);
+        }
+
+        // --- SETTINGS MANAGEMENT ---
+        function loadSettingsToUI() {
+            // Timings
+            document.getElementById('input-speech-h').value = APP_CONFIG.jummah.speechHour;
+            document.getElementById('input-speech-m').value = APP_CONFIG.jummah.speechMinute;
+            document.getElementById('input-khutbah-h').value = APP_CONFIG.jummah.khutbahHour;
+            document.getElementById('input-khutbah-m').value = APP_CONFIG.jummah.khutbahMinute;
+            document.getElementById('input-jamaat-h').value = APP_CONFIG.jummah.jamaatHour;
+            document.getElementById('input-jamaat-m').value = APP_CONFIG.jummah.jamaatMinute;
+            document.getElementById('input-start-h').value = APP_CONFIG.jummah.startDisplayHour;
+            document.getElementById('input-start-m').value = APP_CONFIG.jummah.startDisplayMinute;
+
+            // Theme and Layout - update card selections
+            applyTheme(APP_CONFIG.theme);
+            applyLayout(APP_CONFIG.layout);
+
+            renderAdminSlideList();
+        }
+
+        /**
+         * Renders the admin slide list with XSS protection
+         */
+        function renderAdminSlideList() {
+            const list = document.getElementById('admin-slide-list');
+            list.innerHTML = '';
+            APP_CONFIG.slides.forEach((slide, index) => {
+                const li = document.createElement('li');
+                li.className = `slide-item ${!slide.visible ? 'hidden-slide' : ''}`;
+
+                if (slide.type === 'text') {
+                    const safeTitle = escapeHtml(slide.title || 'Text Slide');
+                    li.innerHTML = `
+                        <span style="font-family:monospace; color:var(--gold-primary);">${index + 1}</span>
+                        <div class="slide-thumb" style="display:flex;align-items:center;justify-content:center;background:#333;color:white;font-size:20px;">
+                            <i class="${escapeHtml(slide.icon || 'fas fa-font')}"></i>
+                        </div>
+                        <span class="slide-url" title="${safeTitle}" style="font-weight:bold;">${safeTitle}</span>
+                        <div class="slide-actions">
+                            <button class="btn btn-primary" style="padding: 4px 10px; font-size: 0.8rem; min-height: 0;" onclick="editTextSlide('${escapeHtml(slide.id)}')">Edit</button>
+                            <input type="checkbox" ${slide.visible ? 'checked' : ''} onchange="toggleSlideVisible('${escapeHtml(slide.id)}')">
+                            <button class="icon-btn" onclick="moveSlideUp(${index})"><i class="fas fa-chevron-up"></i></button>
+                            <button class="icon-btn" onclick="moveSlideDown(${index})"><i class="fas fa-chevron-down"></i></button>
+                            <button class="icon-btn" onclick="removeSlide('${escapeHtml(slide.id)}')" style="color:#ff6b6b"><i class="fas fa-trash"></i></button>
+                        </div>
+                    `;
+                } else {
+                    const safeUrl = slide.url ? escapeHtml(slide.url) : '';
+                    const truncatedUrl = safeUrl.length > 50 ? safeUrl.substring(0, 47) + '...' : safeUrl;
+
+                    li.innerHTML = `
+                        <span style="font-family:monospace; color:var(--gold-primary);">${index + 1}</span>
+                        <img src="${safeUrl}" class="slide-thumb" onerror="this.src='https://via.placeholder.com/60?text=Err'">
+                        <span class="slide-url" title="${safeUrl}">${truncatedUrl}</span>
+                        <div class="slide-actions">
+                            <input type="checkbox" ${slide.visible ? 'checked' : ''} onchange="toggleSlideVisible('${escapeHtml(slide.id)}')">
+                            <button class="icon-btn" onclick="moveSlideUp(${index})"><i class="fas fa-chevron-up"></i></button>
+                            <button class="icon-btn" onclick="moveSlideDown(${index})"><i class="fas fa-chevron-down"></i></button>
+                            <button class="icon-btn" onclick="removeSlide('${escapeHtml(slide.id)}')" style="color:#ff6b6b"><i class="fas fa-trash"></i></button>
+                        </div>
+                    `;
+                }
+                list.appendChild(li);
+            });
+        }
+
+        // --- LOCAL STATE MODIFIERS (Before Saving to Cloud) ---
+        /**
+         * Handles file upload for slides with compression
+         */
+        function uploadSlideFile() {
+            const fileInput = document.getElementById('input-slide-file');
+            const file = fileInput.files[0];
+            const btn = document.getElementById('btn-upload');
+
+            if (!file) {
+                alert("Please select an image file first.");
+                return;
+            }
+
+            if (!file.type.match('image.*')) {
+                alert("Please select a valid image file.");
+                return;
+            }
+
+            const originalText = btn.innerText;
+            btn.innerText = "Processing...";
+            btn.disabled = true;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const img = new Image();
+                img.src = e.target.result;
+
+                img.onload = function () {
+                    // Compress Image to avoid Firestore 1MB Limit
+                    const compressedBase64 = compressImage(
+                        img,
+                        CONSTANTS.MAX_IMAGE_WIDTH,
+                        CONSTANTS.IMAGE_QUALITY
+                    );
+
+                    // Check approximate size (Base64 string length * 0.75 = bytes)
+                    const sizeInBytes = Math.ceil((compressedBase64.length * 3) / 4);
+                    // Warn if still over limit (leaving room for other data)
+                    if (sizeInBytes > CONSTANTS.MAX_IMAGE_SIZE_BYTES) {
+                        alert("Image is too complex even after compression. Please pick a simpler image.");
+                        resetBtn();
+                        return;
+                    }
+
+                    // Use timestamp for unique ordering (prevents race conditions)
+                    const newOrder = Date.now();
+
+                    // DIRECTLY UPLOAD TO 'slides' COLLECTION
+                    db.collection("slides").add({
+                        url: compressedBase64,
+                        visible: true,
+                        order: newOrder,
+                        createdAt: Date.now()
+                    }).then(() => {
+                        fileInput.value = '';
+                        btn.innerText = "Success - Saved!";
+                        setTimeout(() => { resetBtn(); }, 1500);
+                    }).catch(err => {
+                        console.error(err);
+                        alert("Error uploading: " + err.message);
+                        resetBtn();
+                    });
+                };
+            };
+            reader.readAsDataURL(file);
+
+            function resetBtn() {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        /**
+         * Compresses an image to reduce file size
+         * @param {HTMLImageElement} img - The image element to compress
+         * @param {number} maxWidth - Maximum width in pixels
+         * @param {number} quality - JPEG quality (0-1)
+         * @returns {string} - Base64 encoded compressed image
+         */
+        function compressImage(img, maxWidth, quality) {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxWidth) {
+                height = Math.round((height *= maxWidth / width));
+                width = maxWidth;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            return canvas.toDataURL('image/jpeg', quality);
+        }
+
+        /**
+         * Adds a new slide from URL input with validation
+         */
+        function addNewSlide() {
+            const input = document.getElementById('input-slide-url');
+            const url = input.value.trim();
+
+            if (!url) {
+                alert("Please enter a URL.");
+                return;
+            }
+
+            // Validate URL format
+            if (!isValidUrl(url)) {
+                alert("Please enter a valid image URL (http:// or https://).");
+                return;
+            }
+
+            // Use timestamp for unique ordering (prevents race conditions)
+            const newOrder = Date.now();
+
+            db.collection("slides").add({
+                url: url,
+                visible: true,
+                order: newOrder,
+                createdAt: Date.now()
+            }).then(() => {
+                input.value = '';
+            }).catch(err => alert("Error adding link: " + err.message));
+        }
+
+        function removeSlide(docId) {
+            if (confirm("Are you sure you want to delete this slide?")) {
+                db.collection("slides").doc(docId).delete();
+            }
+        }
+
+        function moveSlideUp(index) {
+            if (index > 0) {
+                const currentSlide = APP_CONFIG.slides[index];
+                const prevSlide = APP_CONFIG.slides[index - 1];
+                swapSlidesOrder(currentSlide, prevSlide);
+            }
+        }
+
+        function moveSlideDown(index) {
+            if (index < APP_CONFIG.slides.length - 1) {
+                const currentSlide = APP_CONFIG.slides[index];
+                const nextSlide = APP_CONFIG.slides[index + 1];
+                swapSlidesOrder(currentSlide, nextSlide);
+            }
+        }
+
+        function swapSlidesOrder(slideA, slideB) {
+            // Swap their 'order' values
+            const orderA = slideA.order !== undefined ? slideA.order : 0;
+            const orderB = slideB.order !== undefined ? slideB.order : 0;
+
+            const batch = db.batch();
+            const refA = db.collection("slides").doc(slideA.id);
+            const refB = db.collection("slides").doc(slideB.id);
+
+            // If orders are identical (legacy data), force a fix
+            if (orderA === orderB) {
+                batch.update(refA, { order: orderA + 1 });
+            } else {
+                batch.update(refA, { order: orderB });
+                batch.update(refB, { order: orderA });
+            }
+
+            batch.commit().catch(err => console.error("Swap failed", err));
+        }
+
+        function toggleSlideVisible(docId) {
+            // Find current state
+            const slide = APP_CONFIG.slides.find(s => s.id === docId);
+            if (slide) {
+                db.collection("slides").doc(docId).update({
+                    visible: !slide.visible
+                });
+            }
+        }
+
+        function addTextSlideTemplate(templateType) {
+            let slideData = {
+                type: 'text',
+                visible: true,
+                order: Date.now(),
+                createdAt: Date.now()
+            };
+
+            if (templateType === 'mobile') {
+                slideData = {
+                    ...slideData,
+                    title: "Mobile Phones",
+                    text: "Please switch your phone to silent mode.",
+                    icon: "fas fa-mobile-screen-button",
+                    strikeIcon: true,
+                    iconColor: "#ff6b6b",
+                    titleColor: "#ff6b6b",
+                    iconSize: "7rem",
+                    bgStyle: "#050505",
+                };
+            } else if (templateType === 'donate') {
+                slideData = {
+                    ...slideData,
+                    title: "Donate Generously",
+                    text: '"Charity does not decrease wealth"',
+                    icon: "fas fa-hand-holding-heart",
+                    iconColor: "var(--gold-light)",
+                    titleColor: "var(--gold-light)",
+                    textColor: "var(--gold-primary)",
+                    textStyle: "italic",
+                    iconSize: "4rem",
+                    bgStyle: "radial-gradient(circle, #203a43, #0f2027)"
+                };
+            }
+
+            db.collection("slides").add(slideData).then(() => {
+                alert(templateType + " Slide Added Successfully!");
+            }).catch(err => alert("Error adding slide: " + err.message));
+        }
+
+        function editTextSlide(docId) {
+            const slide = APP_CONFIG.slides.find(s => s.id === docId);
+            if (!slide || slide.type !== 'text') return;
+
+            const newTitle = prompt("Edit Title:", slide.title || "");
+            if (newTitle === null) return; // User cancelled
+
+            const newText = prompt("Edit Main Text:", slide.text || "");
+            if (newText === null) return; // User cancelled
+
+            db.collection("slides").doc(docId).update({
+                title: newTitle,
+                text: newText
+            }).then(() => {
+                console.log("Text slide updated");
+            }).catch(err => alert("Error updating slide: " + err.message));
+        }
+        /**
+         * Saves Jummah timing settings to Firebase
+         */
+        function saveSettings() {
+            const btn = document.querySelector('#settings-view .btn-primary');
+            const originalText = btn.innerText;
+            btn.innerText = "Saving...";
+            btn.disabled = true;
+
+            // Update Local Object from Inputs with validation
+            APP_CONFIG.jummah.speechHour = validateTimeInput(
+                document.getElementById('input-speech-h').value, 0, 23, 12
+            );
+            APP_CONFIG.jummah.speechMinute = validateTimeInput(
+                document.getElementById('input-speech-m').value, 0, 59, 15
+            );
+            APP_CONFIG.jummah.khutbahHour = validateTimeInput(
+                document.getElementById('input-khutbah-h').value, 0, 23, 12
+            );
+            APP_CONFIG.jummah.khutbahMinute = validateTimeInput(
+                document.getElementById('input-khutbah-m').value, 0, 59, 40
+            );
+            APP_CONFIG.jummah.jamaatHour = validateTimeInput(
+                document.getElementById('input-jamaat-h').value, 0, 23, 12
+            );
+            APP_CONFIG.jummah.jamaatMinute = validateTimeInput(
+                document.getElementById('input-jamaat-m').value, 0, 59, 45
+            );
+            APP_CONFIG.jummah.startDisplayHour = validateTimeInput(
+                document.getElementById('input-start-h').value, 0, 23, 10
+            );
+            APP_CONFIG.jummah.startDisplayMinute = validateTimeInput(
+                document.getElementById('input-start-m').value, 0, 59, 0
+            );
+
+            // PUSH SETTINGS TO CLOUD (Timings, Theme, Layout - Slides handled separately)
+            db.collection("mosque_data").doc("settings").set({
+                jummah: APP_CONFIG.jummah,
+                theme: APP_CONFIG.theme,
+                customColor: APP_CONFIG.customColor,
+                layout: APP_CONFIG.layout
+            }, { merge: true })
+                .then(() => {
+                    btn.innerText = "Saved!";
+                    setTimeout(() => {
+                        btn.innerText = originalText;
+                        btn.disabled = false;
+                        closeAdminPanel();
+                    }, 1000);
+                })
+                .catch((error) => {
+                    console.error("Error writing document: ", error);
+                    alert("Error saving: " + error.message);
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                });
+        }
+
+        // --- SLIDESHOW ENGINE ---
+        /**
+         * Initializes the slideshow from the current configuration
+         * Creates slide elements from dynamic slides and prepares animation
+         */
+        function initSlideshowFromConfig() {
+            // Stop existing animation
+            if (currentAnimationFrame) cancelAnimationFrame(currentAnimationFrame);
+
+            // Clear Dynamic Slides from DOM
+            dynamicSlides.forEach(el => el.remove());
+            dynamicSlides = [];
+
+            // Filter visible slides only
+            const visibleSlides = APP_CONFIG.slides.filter(s => s.visible);
+
+            if (visibleSlides.length === 0) {
+                loadingMessage.innerText = "Display Active (No Slides)";
+                loadingMessage.style.display = 'block';
+                startSlideshowAnimation([]);
+                return;
+            }
+
+            loadingMessage.innerText = "Loading slides...";
+            loadingMessage.style.display = 'block';
+
+            let loadedCount = 0;
+            const slideElements = [];
+
+            function checkAllLoaded() {
+                loadedCount++;
+                if (loadedCount === visibleSlides.length) {
+                    loadingMessage.style.display = 'none';
+                    // Add to DOM in order
+                    slideElements.forEach(el => {
+                        slideshowContainer.appendChild(el);
+                        dynamicSlides.push(el);
+                    });
+                    startSlideshowAnimation(dynamicSlides);
+                }
+            }
+
+            visibleSlides.forEach((slideItem, index) => {
+                const slideDiv = document.createElement('div');
+                slideDiv.className = 'slide';
+
+                if (slideItem.type === 'text') {
+                    // TEXT SLIDE
+                    slideDiv.style.background = slideItem.bgStyle || '#050505';
+
+                    const overlayDiv = document.createElement('div');
+                    overlayDiv.className = 'slide-overlay';
+                    overlayDiv.innerHTML = `
+                        <div class="slide-text">
+                            <div style="font-size: ${slideItem.iconSize || '4rem'}; margin-bottom: 20px; color: ${slideItem.iconColor || 'white'}; text-shadow: 0 0 30px rgba(255,255,255,0.2);">
+                                <i class="${slideItem.icon || 'fas fa-info-circle'}" ${slideItem.strikeIcon ? 'style="text-decoration: line-through;"' : ''}></i>
+                            </div>
+                            <h2 style="color: ${slideItem.titleColor || 'white'};">${slideItem.title || ''}</h2>
+                            <p style="color: ${slideItem.textColor || 'white'}; ${slideItem.textStyle ? 'font-style: ' + slideItem.textStyle + ';' : ''} font-size: ${slideItem.textSize || '1.6rem'}">${slideItem.text || ''}</p>
+                        </div>
+                    `;
+                    slideDiv.appendChild(overlayDiv);
+                    slideElements.push(slideDiv);
+                    checkAllLoaded();
+                } else {
+                    // IMAGE SLIDE
+                    const bgLayer = document.createElement('div');
+                    bgLayer.className = 'slide-bg';
+
+                    const contentLayer = document.createElement('div');
+                    contentLayer.className = 'slide-content';
+
+                    const img = new Image();
+                    img.onload = () => {
+                        bgLayer.style.backgroundImage = `url('${slideItem.url}')`;
+                        contentLayer.style.backgroundImage = `url('${slideItem.url}')`;
+                        checkAllLoaded();
+                    };
+                    img.onerror = () => {
+                        console.warn(`Failed to load: ${slideItem.url}`);
+                        checkAllLoaded();
+                    };
+                    img.src = slideItem.url;
+
+                    slideDiv.appendChild(bgLayer);
+                    slideDiv.appendChild(contentLayer);
+
+                    // Add Welcome Overlay to First Slide if it is an image and it's the very first
+                    if (index === 0 && !slideItem.hideWelcome) {
+                        const overlayDiv = document.createElement('div');
+                        overlayDiv.className = 'slide-overlay';
+                        overlayDiv.innerHTML = `
+                            <div class="slide-text">
+                                <h2>Welcome</h2>
+                                <p>To Faizan-E-Madinah & Education Center</p>
+                            </div>
+                        `;
+                        slideDiv.appendChild(overlayDiv);
+                    }
+
+                    slideElements.push(slideDiv);
+                }
+            });
+        }
+
+        /**
+         * Starts the slideshow animation with proper cleanup
+         * @param {HTMLElement[]} allSlides - Array of slide elements to animate
+         */
+        function startSlideshowAnimation(allSlides) {
+            // Cancel any existing animation to prevent memory leaks
+            if (currentAnimationFrame) {
+                cancelAnimationFrame(currentAnimationFrame);
+                currentAnimationFrame = null;
+            }
+
+            currentSlideIndex = 0;
+
+            // Reset all
+            document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+
+            if (allSlides.length === 0) return;
+
+            allSlides[0].classList.add('active');
+
+            let startTime = Date.now();
+
+            function animate() {
+                const now = Date.now();
+                const elapsed = now - startTime;
+                const progress = Math.min((elapsed / CONSTANTS.SLIDE_DURATION) * 100, 100);
+
+                if (progressBar) progressBar.style.width = progress + "%";
+
+                if (elapsed >= CONSTANTS.SLIDE_DURATION) {
+                    allSlides[currentSlideIndex].classList.remove('active');
+                    currentSlideIndex = (currentSlideIndex + 1) % allSlides.length;
+                    allSlides[currentSlideIndex].classList.add('active');
+
+                    startTime = Date.now();
+                    if (progressBar) progressBar.style.width = "0%";
+                }
+
+                currentAnimationFrame = requestAnimationFrame(animate);
+            }
+
+            if (allSlides.length > 1) {
+                progressBar.style.display = 'block';
+                currentAnimationFrame = requestAnimationFrame(animate);
+            } else {
+                progressBar.style.display = 'none';
+            }
+        }
+
+        // --- JUMMAH TIMES DISPLAY ---
+        function updateJummahTimesDisplay() {
+            const conf = APP_CONFIG.jummah;
+            const formatTime = (hour, minute) => {
+                const period = hour >= 12 ? 'PM' : 'AM';
+                const displayHour = hour % 12 || 12;
+                const displayMinute = minute < 10 ? '0' + minute : minute;
+                return `${displayHour}:${displayMinute} ${period}`;
+            };
+
+            document.getElementById('speech-time').innerText = formatTime(conf.speechHour, conf.speechMinute);
+            document.getElementById('khutbah-time').innerText = formatTime(conf.khutbahHour, conf.khutbahMinute);
+            document.getElementById('jamaat-time').innerText = formatTime(conf.jamaatHour, conf.jamaatMinute);
+        }
+
+        // --- CLOCK & COUNTDOWN ---
+        function updateClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            document.getElementById('clock-time').innerText = timeString;
+
+            const dateOptions = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+            document.getElementById('clock-date').innerText = now.toLocaleDateString('en-GB', dateOptions);
+
+            checkCountdown(now);
+        }
+
+        /**
+         * Gets the ordinal suffix for a day number (st, nd, rd, th)
+         * @param {number} day - Day of month (1-31)
+         * @returns {string} - Ordinal suffix
+         */
+        function getOrdinalSuffix(day) {
+            if (day > 3 && day < 21) return 'th';
+            switch (day % 10) {
+                case 1:
+                    return "st";
+                case 2:
+                    return "nd";
+                case 3:
+                    return "rd";
+                default:
+                    return "th";
+            }
+        }
+
+        function checkCountdown(now) {
+            const container = document.getElementById('countdown-container');
+            const header = document.querySelector('.countdown-header');
+            const timerContent = document.getElementById('timer');
+            const jummahConf = APP_CONFIG.jummah;
+
+            container.style.display = "flex";
+
+            // Default Style
+            container.style.borderColor = "var(--gold-primary)";
+            container.style.background = "rgba(212, 175, 55, 0.05)";
+            header.style.color = "var(--gold-primary)";
+            timerContent.style.color = "var(--text-white)";
+            timerContent.style.fontSize = "4.5rem";
+
+            const isFriday = now.getDay() === jummahConf.dayIndex;
+            const startDisplayTime = new Date(now);
+            startDisplayTime.setHours(jummahConf.startDisplayHour, jummahConf.startDisplayMinute, 0, 0);
+
+            const jamaatTime = new Date(now);
+            jamaatTime.setHours(jummahConf.jamaatHour, jummahConf.jamaatMinute, 0, 0);
+
+            const postPrayerEndTime = new Date(now);
+            postPrayerEndTime.setHours(jummahConf.postPrayerEndHour, jummahConf.postPrayerEndMinute, 0, 0);
+
+            // LOGIC STATES
+            if (isFriday && now >= startDisplayTime && now < jamaatTime) {
+                // COUNTDOWN
+                header.innerText = "Time Remaining";
+                const diff = jamaatTime - now;
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minsRemain = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const totalMinutes = Math.floor(diff / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+                if (hours > 0) {
+                    timerContent.innerText = `${hours}h ${minsRemain}m`;
+                } else {
+                    const m = minsRemain < 10 ? "0" + minsRemain : minsRemain;
+                    const s = seconds < 10 ? "0" + seconds : seconds;
+                    timerContent.innerText = m + ":" + s;
+                }
+
+                if (totalMinutes < 10) {
+                    container.style.borderColor = "#ff4757";
+                    container.style.background = "rgba(255, 71, 87, 0.15)";
+                    header.style.color = "#ff6b81";
+                }
+            }
+            else if (isFriday && now >= jamaatTime && now < postPrayerEndTime) {
+                // DURING/AFTER PRAYER
+                header.innerText = "Faizan-E-Madinah";
+                timerContent.innerText = "Jummah Mubarak";
+                timerContent.style.fontSize = "2.8rem";
+                timerContent.style.color = "var(--gold-primary)";
+            }
+            else {
+                // NEXT JUMMAH
+                let targetDate = new Date(now);
+                if (isFriday && now >= postPrayerEndTime) {
+                    targetDate.setDate(now.getDate() + 7);
+                } else if (!isFriday) {
+                    const daysUntilFriday = (5 - now.getDay() + 7) % 7;
+                    targetDate.setDate(now.getDate() + (daysUntilFriday === 0 ? 7 : daysUntilFriday));
+                }
+
+                const dayOfMonth = targetDate.getDate();
+                const monthName = targetDate.toLocaleDateString('en-GB', { month: 'long' });
+                const suffix = getOrdinalSuffix(dayOfMonth);
+
+                header.innerText = "Next Jummah";
+                timerContent.innerText = `Friday ${dayOfMonth}${suffix} ${monthName}`;
+                timerContent.style.fontSize = "2.5rem";
+            }
+        }
+
+        // Start App
+        initApp();
+    </script>
+</body>
+
+</html>
