@@ -1722,6 +1722,8 @@
         let dynamicSlides = [];
         let currentAnimationFrame = null;
         let currentSlideIndex = 0;
+        let slideshowGeneration = 0;   // incremented on every reinit to cancel stale callbacks
+        let slideshowReinitTimer = null; // debounce handle
 
         // --- UTILITY FUNCTIONS ---
         /**
@@ -1859,12 +1861,24 @@
                     APP_CONFIG.slides = [];
                     snapshot.forEach((doc) => {
                         const s = doc.data();
-                        // Add ID so we can update/delete later
                         APP_CONFIG.slides.push({ ...s, id: doc.id });
                     });
 
-                    renderAdminSlideList();
-                    initSlideshowFromConfig(); // Reload slideshow
+                    // Only update admin list when the panel is actually open
+                    if (document.getElementById('settings-view').style.display === 'block') {
+                        renderAdminSlideList();
+                    }
+
+                    // Debounce: wait 800 ms before reinitialising.
+                    // Firebase often fires the snapshot twice in quick succession
+                    // (once locally, once from the server). Without this, two
+                    // initSlideshowFromConfig() calls race and spawn duplicate
+                    // setInterval loops that fight over currentSlideIndex.
+                    if (slideshowReinitTimer) clearTimeout(slideshowReinitTimer);
+                    slideshowReinitTimer = setTimeout(function() {
+                        slideshowReinitTimer = null;
+                        initSlideshowFromConfig();
+                    }, 800);
 
                     if (snapshot.empty) {
                         console.log("No slides found in collection.");
@@ -2405,6 +2419,12 @@
         function initSlideshowFromConfig() {
             // Stop existing animation
             if (currentAnimationFrame) clearInterval(currentAnimationFrame);
+            currentAnimationFrame = null;
+
+            // Bump generation — any onload callbacks from the previous
+            // call that are still in-flight will see a stale generation
+            // and self-abort instead of calling startSlideshowAnimation.
+            const myGeneration = ++slideshowGeneration;
 
             // Clear Dynamic Slides from DOM
             dynamicSlides.forEach(el => el.remove());
@@ -2428,6 +2448,8 @@
 
             function checkAllLoaded() {
                 loadedCount++;
+                // Bail out if a newer initSlideshowFromConfig() call has already taken over
+                if (myGeneration !== slideshowGeneration) return;
                 if (loadedCount === visibleSlides.length) {
                     loadingMessage.style.display = 'none';
                     // Add to DOM in order
@@ -2484,6 +2506,7 @@
                     };
                     img.onerror = () => {
                         console.warn(`Failed to load: ${slideItem.url}`);
+                        if (myGeneration !== slideshowGeneration) return;
                         checkAllLoaded();
                     };
                     img.src = slideItem.url;
