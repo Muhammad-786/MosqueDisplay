@@ -1722,8 +1722,10 @@
         let dynamicSlides = [];
         let currentAnimationFrame = null;
         let currentSlideIndex = 0;
-        let slideshowGeneration = 0;   // incremented on every reinit to cancel stale callbacks
-        let slideshowReinitTimer = null; // debounce handle
+        let slideshowGeneration = 0;    // incremented on every reinit to cancel stale callbacks
+        let slideshowReinitTimer = null; // debounce handle for slides reinit
+        let settingsApplyTimer = null;   // debounce handle for settings reapplication
+        let pendingFreeTimers = [];      // setTimeout IDs from the free-memory step; cancelled on reinit
 
         // --- UTILITY FUNCTIONS ---
         /**
@@ -1835,14 +1837,36 @@
                 .onSnapshot((doc) => {
                     if (doc.exists) {
                         const data = doc.data();
-                        APP_CONFIG.jummah = data.jummah || DEFAULT_CONFIG.jummah;
-                        APP_CONFIG.theme = data.theme || DEFAULT_CONFIG.theme;
-                        APP_CONFIG.customColor = data.customColor || DEFAULT_CONFIG.customColor;
-                        APP_CONFIG.layout = data.layout || DEFAULT_CONFIG.layout;
-                        updateJummahTimesDisplay();
-                        updateClock();
-                        applyTheme(APP_CONFIG.theme);   // Apply saved theme
-                        applyLayout(APP_CONFIG.layout); // Apply saved layout
+
+                        // Detect whether anything actually changed before doing expensive work.
+                        // Firestore fires the snapshot TWICE on every write (local echo + server
+                        // confirmation), so without this guard applyTheme / applyLayout would
+                        // run twice, doubling the CSS repaint cost on the Fire Stick.
+                        const jummahChanged   = JSON.stringify(APP_CONFIG.jummah) !== JSON.stringify(data.jummah);
+                        const themeChanged    = APP_CONFIG.theme       !== (data.theme       || DEFAULT_CONFIG.theme);
+                        const colorChanged    = APP_CONFIG.customColor !== (data.customColor || DEFAULT_CONFIG.customColor);
+                        const layoutChanged   = APP_CONFIG.layout      !== (data.layout      || DEFAULT_CONFIG.layout);
+
+                        APP_CONFIG.jummah       = data.jummah       || DEFAULT_CONFIG.jummah;
+                        APP_CONFIG.theme        = data.theme        || DEFAULT_CONFIG.theme;
+                        APP_CONFIG.customColor  = data.customColor  || DEFAULT_CONFIG.customColor;
+                        APP_CONFIG.layout       = data.layout       || DEFAULT_CONFIG.layout;
+
+                        // Debounce the visual update so the two rapid fires collapse into one.
+                        if (settingsApplyTimer) clearTimeout(settingsApplyTimer);
+                        settingsApplyTimer = setTimeout(function() {
+                            settingsApplyTimer = null;
+                            try {
+                                if (jummahChanged) { updateJummahTimesDisplay(); updateClock(); }
+                                if (themeChanged || colorChanged) applyTheme(APP_CONFIG.theme);
+                                if (layoutChanged) applyLayout(APP_CONFIG.layout);
+                                // Always refresh the admin UI if the panel is open
+                                if (document.getElementById('settings-view').style.display === 'block') {
+                                    loadSettingsToUI();
+                                }
+                            } catch(e) { console.error('Settings apply error:', e); }
+                        }, 300);
+
                     } else {
                         db.collection("mosque_data").doc("settings").set({
                             jummah: DEFAULT_CONFIG.jummah,
@@ -1858,15 +1882,31 @@
             // 2. Listen to SLIDES (Separate Collection for Unlimited Storage)
             db.collection("slides").orderBy("order", "asc")
                 .onSnapshot((snapshot) => {
-                    APP_CONFIG.slides = [];
+                    const newSlides = [];
                     snapshot.forEach((doc) => {
                         const s = doc.data();
-                        APP_CONFIG.slides.push({ ...s, id: doc.id });
+                        newSlides.push({ ...s, id: doc.id });
                     });
+
+                    // ---------- Change-detection guard ----------
+                    // Firestore re-delivers the full snapshot on every reconnect,
+                    // including reconnects caused by saving SETTINGS (auth token
+                    // refresh, etc.).  Without this check, changing the colour or
+                    // layout triggers a full slideshow reinit for no reason, which
+                    // loads all images again and can OOM the Fire Stick.
+                    const slidesActuallyChanged =
+                        JSON.stringify(APP_CONFIG.slides) !== JSON.stringify(newSlides);
+
+                    APP_CONFIG.slides = newSlides;
 
                     // Only update admin list when the panel is actually open
                     if (document.getElementById('settings-view').style.display === 'block') {
                         renderAdminSlideList();
+                    }
+
+                    if (!slidesActuallyChanged) {
+                        // Slides are identical — skip reinit entirely.
+                        return;
                     }
 
                     // Debounce: wait 800 ms before reinitialising.
@@ -2417,9 +2457,16 @@
          * Creates slide elements from dynamic slides and prepares animation
          */
         function initSlideshowFromConfig() {
-            // Stop existing animation
+            // Stop existing animation interval
             if (currentAnimationFrame) clearInterval(currentAnimationFrame);
             currentAnimationFrame = null;
+
+            // Cancel any pending free-memory setTimeout callbacks from the
+            // previous animation cycle.  Without this, a callback that fired
+            // just before clearInterval could clear backgroundImage on slides
+            // that the new cycle is about to show.
+            pendingFreeTimers.forEach(function(id) { clearTimeout(id); });
+            pendingFreeTimers = [];
 
             // Bump generation — any onload callbacks from the previous
             // call that are still in-flight will see a stale generation
@@ -2559,35 +2606,60 @@
                 if (progressBar) progressBar.style.display = 'block';
 
                 currentAnimationFrame = setInterval(function() {
-                    const elapsed = Date.now() - startTime;
-                    const progress = Math.min((elapsed / CONSTANTS.SLIDE_DURATION) * 100, 100);
-                    if (progressBar) progressBar.style.width = progress + "%";
+                    try {
+                        const elapsed = Date.now() - startTime;
+                        const progress = Math.min((elapsed / CONSTANTS.SLIDE_DURATION) * 100, 100);
+                        if (progressBar) progressBar.style.width = progress + "%";
 
-                    if (elapsed >= CONSTANTS.SLIDE_DURATION) {
-                        const prevIndex = currentSlideIndex;
-                        allSlides[prevIndex].classList.remove('active');
-                        currentSlideIndex = (currentSlideIndex + 1) % allSlides.length;
-                        const nextSlide = allSlides[currentSlideIndex];
+                        if (elapsed >= CONSTANTS.SLIDE_DURATION) {
+                            const prevIndex = currentSlideIndex;
 
-                        // Restore background-image on soon-to-be-visible slide
-                        nextSlide.querySelectorAll('[data-bg-url]').forEach(function(el) {
-                            if (!el.style.backgroundImage) {
-                                el.style.backgroundImage = "url('" + el.dataset.bgUrl + "')";
+                            // Bounds guard: if the array was somehow mutated or
+                            // currentSlideIndex drifted, reset safely rather than crash.
+                            if (prevIndex < 0 || prevIndex >= allSlides.length) {
+                                currentSlideIndex = 0;
+                                startTime = Date.now();
+                                return;
                             }
-                        });
 
-                        nextSlide.classList.add('active');
+                            allSlides[prevIndex].classList.remove('active');
+                            currentSlideIndex = (currentSlideIndex + 1) % allSlides.length;
+                            const nextSlide = allSlides[currentSlideIndex];
 
-                        // Free bitmap memory on the slide that just left
-                        const slideToFree = allSlides[prevIndex];
-                        setTimeout(function() {
-                            slideToFree.querySelectorAll('[data-bg-url]').forEach(function(el) {
-                                el.style.backgroundImage = '';
+                            // Restore background-image on soon-to-be-visible slide
+                            nextSlide.querySelectorAll('[data-bg-url]').forEach(function(el) {
+                                if (!el.style.backgroundImage) {
+                                    el.style.backgroundImage = "url('" + el.dataset.bgUrl + "')";
+                                }
                             });
-                        }, 1200);
 
-                        startTime = Date.now();
-                        if (progressBar) progressBar.style.width = "0%";
+                            nextSlide.classList.add('active');
+
+                            // Free bitmap memory on the slide that just left.
+                            // Track the timer ID so initSlideshowFromConfig can cancel
+                            // it if a reinit happens before the 1.2 s window elapses.
+                            const slideToFree = allSlides[prevIndex];
+                            const freeTimerId = setTimeout(function() {
+                                pendingFreeTimers = pendingFreeTimers.filter(function(id) { return id !== freeTimerId; });
+                                slideToFree.querySelectorAll('[data-bg-url]').forEach(function(el) {
+                                    el.style.backgroundImage = '';
+                                });
+                            }, 1200);
+                            pendingFreeTimers.push(freeTimerId);
+
+                            startTime = Date.now();
+                            if (progressBar) progressBar.style.width = "0%";
+                        }
+                    } catch(err) {
+                        // An unexpected JS error inside the interval must never
+                        // silently kill the slideshow.  Log it, then schedule
+                        // a clean restart after 2 s.
+                        console.error('Slideshow interval error (will auto-recover):', err);
+                        clearInterval(currentAnimationFrame);
+                        currentAnimationFrame = null;
+                        setTimeout(function() {
+                            if (!currentAnimationFrame) startSlideshowAnimation(allSlides);
+                        }, 2000);
                     }
                 }, 250);
             } else {
