@@ -2464,8 +2464,15 @@
 
                     const img = new Image();
                     img.onload = () => {
-                        bgLayer.style.backgroundImage = `url('${slideItem.url}')`;
-                        contentLayer.style.backgroundImage = `url('${slideItem.url}')`;
+                        // Store URL in data attributes instead of immediately setting background-image
+                        // The animation loop will set/clear background-image lazily to save memory
+                        bgLayer.dataset.bgUrl = slideItem.url;
+                        contentLayer.dataset.bgUrl = slideItem.url;
+                        // Only set immediately if this is the first slide (shown right away)
+                        if (index === 0) {
+                            bgLayer.style.backgroundImage = `url('${slideItem.url}')`;
+                            contentLayer.style.backgroundImage = `url('${slideItem.url}')`;
+                        }
                         checkAllLoaded();
                     };
                     img.onerror = () => {
@@ -2525,9 +2532,28 @@
                 if (progressBar) progressBar.style.width = progress + "%";
 
                 if (elapsed >= CONSTANTS.SLIDE_DURATION) {
-                    allSlides[currentSlideIndex].classList.remove('active');
+                    const prevIndex = currentSlideIndex;
+                    allSlides[prevIndex].classList.remove('active');
                     currentSlideIndex = (currentSlideIndex + 1) % allSlides.length;
-                    allSlides[currentSlideIndex].classList.add('active');
+                    const nextSlide = allSlides[currentSlideIndex];
+
+                    // Restore background-image on the slide about to become visible
+                    nextSlide.querySelectorAll('[data-bg-url]').forEach(el => {
+                        if (!el.style.backgroundImage) {
+                            el.style.backgroundImage = `url('${el.dataset.bgUrl}')`;
+                        }
+                    });
+
+                    nextSlide.classList.add('active');
+
+                    // Clear background-image on the slide that just left — frees bitmap memory
+                    // Use a short delay so the CSS fade-out transition completes first
+                    const slideToFree = allSlides[prevIndex];
+                    setTimeout(() => {
+                        slideToFree.querySelectorAll('[data-bg-url]').forEach(el => {
+                            el.style.backgroundImage = '';
+                        });
+                    }, 1200); // slightly longer than the 1s CSS transition
 
                     startTime = Date.now();
                     if (progressBar) progressBar.style.width = "0%";
