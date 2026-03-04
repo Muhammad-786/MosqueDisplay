@@ -390,11 +390,18 @@
             will-change: transform;
         }
 
-        /* Ken Burns Animation */
+        /* Ken Burns Animation — disabled inside the Android app to save GPU */
         @media (prefers-reduced-motion: no-preference) {
             .slide.active .slide-content {
                 animation: kenBurns 15s ease-out forwards;
             }
+        }
+        /* Body gets data-app="1" injected by MainActivity — turns off the animation */
+        body[data-app] .slide.active .slide-content {
+            animation: none !important;
+        }
+        body[data-app] .slide-content {
+            will-change: auto !important;
         }
 
         @keyframes kenBurns {
@@ -2397,7 +2404,7 @@
          */
         function initSlideshowFromConfig() {
             // Stop existing animation
-            if (currentAnimationFrame) cancelAnimationFrame(currentAnimationFrame);
+            if (currentAnimationFrame) clearInterval(currentAnimationFrame);
 
             // Clear Dynamic Slides from DOM
             dynamicSlides.forEach(el => el.remove());
@@ -2507,15 +2514,13 @@
          * @param {HTMLElement[]} allSlides - Array of slide elements to animate
          */
         function startSlideshowAnimation(allSlides) {
-            // Cancel any existing animation to prevent memory leaks
+            // Cancel any existing timer
             if (currentAnimationFrame) {
-                cancelAnimationFrame(currentAnimationFrame);
+                clearInterval(currentAnimationFrame);
                 currentAnimationFrame = null;
             }
 
             currentSlideIndex = 0;
-
-            // Reset all
             document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
 
             if (allSlides.length === 0) return;
@@ -2524,49 +2529,46 @@
 
             let startTime = Date.now();
 
-            function animate() {
-                const now = Date.now();
-                const elapsed = now - startTime;
-                const progress = Math.min((elapsed / CONSTANTS.SLIDE_DURATION) * 100, 100);
-
-                if (progressBar) progressBar.style.width = progress + "%";
-
-                if (elapsed >= CONSTANTS.SLIDE_DURATION) {
-                    const prevIndex = currentSlideIndex;
-                    allSlides[prevIndex].classList.remove('active');
-                    currentSlideIndex = (currentSlideIndex + 1) % allSlides.length;
-                    const nextSlide = allSlides[currentSlideIndex];
-
-                    // Restore background-image on the slide about to become visible
-                    nextSlide.querySelectorAll('[data-bg-url]').forEach(el => {
-                        if (!el.style.backgroundImage) {
-                            el.style.backgroundImage = `url('${el.dataset.bgUrl}')`;
-                        }
-                    });
-
-                    nextSlide.classList.add('active');
-
-                    // Clear background-image on the slide that just left — frees bitmap memory
-                    // Use a short delay so the CSS fade-out transition completes first
-                    const slideToFree = allSlides[prevIndex];
-                    setTimeout(() => {
-                        slideToFree.querySelectorAll('[data-bg-url]').forEach(el => {
-                            el.style.backgroundImage = '';
-                        });
-                    }, 1200); // slightly longer than the 1s CSS transition
-
-                    startTime = Date.now();
-                    if (progressBar) progressBar.style.width = "0%";
-                }
-
-                currentAnimationFrame = requestAnimationFrame(animate);
-            }
-
+            // Use setInterval at 250 ms instead of requestAnimationFrame.
+            // rAF fires 60×/sec (wasteful on a low-power Fire Stick);
+            // 250 ms is more than smooth enough for a progress bar.
             if (allSlides.length > 1) {
-                progressBar.style.display = 'block';
-                currentAnimationFrame = requestAnimationFrame(animate);
+                if (progressBar) progressBar.style.display = 'block';
+
+                currentAnimationFrame = setInterval(function() {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min((elapsed / CONSTANTS.SLIDE_DURATION) * 100, 100);
+                    if (progressBar) progressBar.style.width = progress + "%";
+
+                    if (elapsed >= CONSTANTS.SLIDE_DURATION) {
+                        const prevIndex = currentSlideIndex;
+                        allSlides[prevIndex].classList.remove('active');
+                        currentSlideIndex = (currentSlideIndex + 1) % allSlides.length;
+                        const nextSlide = allSlides[currentSlideIndex];
+
+                        // Restore background-image on soon-to-be-visible slide
+                        nextSlide.querySelectorAll('[data-bg-url]').forEach(function(el) {
+                            if (!el.style.backgroundImage) {
+                                el.style.backgroundImage = "url('" + el.dataset.bgUrl + "')";
+                            }
+                        });
+
+                        nextSlide.classList.add('active');
+
+                        // Free bitmap memory on the slide that just left
+                        const slideToFree = allSlides[prevIndex];
+                        setTimeout(function() {
+                            slideToFree.querySelectorAll('[data-bg-url]').forEach(function(el) {
+                                el.style.backgroundImage = '';
+                            });
+                        }, 1200);
+
+                        startTime = Date.now();
+                        if (progressBar) progressBar.style.width = "0%";
+                    }
+                }, 250);
             } else {
-                progressBar.style.display = 'none';
+                if (progressBar) progressBar.style.display = 'none';
             }
         }
 
